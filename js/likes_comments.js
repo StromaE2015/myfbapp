@@ -1,12 +1,18 @@
-// إنشاء HTML لتعليق واحد (أو رد)
-function createCommentHTML(comment) {
-  // إذا كان لديه parent_id => يعتبره رد (يمكنك تمييز التصميم إن شئت)
-  const isReply = comment.parent_id ? true : false;
+/****************************************/
+/*  دوال التعامل مع الإعجابات والتعليقات  */
+/****************************************/
 
-  // يمكنك تعديل التنسيق بما يناسبك، هنا مجرد مثال قريب من تنسيقك
+// كاش تخزين بيانات التعليقات لكل منشور، كي نعيد عرضها جزئيًا أو كليًا
+const globalCommentsCache = {};
+
+// إنشاء HTML للتعليق مع مراعاة حالة الإعجاب
+function createCommentHTML(comment) {
+  // لو السيرفر يعيد comment.is_liked = true/false
+  let likeText = comment.is_liked ? "Unlike" : "Like";
+
   return `
-    <div style="display:flex; gap:0.5rem; margin-bottom:0.5rem; margin-left:${isReply ? '40px' : '0'};">
-      <img src="uploads/${comment.profile_picture || 'default_avatar.jpg'}" alt="Profile" 
+    <div id="comment_${comment.id}" style="display:flex; gap:0.5rem; margin-bottom:0.5rem;">
+      <img src="uploads/${comment.profile_picture || 'default_avatar.jpg'}" alt="Profile"
            style="width:36px; height:36px; border-radius:50%; object-fit:cover;">
       <div>
         <div style="background-color:#f1f1f1; padding:0.5rem; border-radius:12px;">
@@ -14,80 +20,91 @@ function createCommentHTML(comment) {
           <span>${comment.content}</span>
         </div>
         <div style="color:#888; font-size:0.85rem; margin-top:0.25rem;">
-          <span style="cursor:pointer;" onclick="toggleLikeComment(${comment.id}, this)">Like</span>
+          <!-- نعرض Like/Unlike حسب حالة is_liked -->
+          <span style="cursor:pointer;" onclick="toggleLikeComment(${comment.id}, this)">${likeText}</span>
           <span> · </span>
-          <span style="cursor:pointer;" onclick="openReplyForm(${comment.id}, ${comment.post_id})">Reply</span>
+          <span style="cursor:pointer;" onclick="showReplyInput(${comment.id})">Reply</span>
           <span> · </span>
           ${comment.time_ago || 'just now'}
         </div>
-        <!-- هنا سيحقن أي ردود فرعية (لو أردت مزيد من التعشيق) -->
-        <div id="repliesContainer_${comment.id}"></div>
       </div>
     </div>
   `;
 }
 
-// دالة بناء شجرة التعليقات (مستوى واحد من الردود)
-function buildCommentsTree(comments) {
-  // نجمع التعليقات في خريطة { commentId => commentData }
-  let map = {};
-  comments.forEach(c => {
-    c.replies = [];
-    map[c.id] = c;
-  });
+// عند الضغط على "Like" أو "Unlike"
+window.toggleLikeComment = function(commentId, btnEl) {
+  if (!commentId) {
+    console.error("Comment ID is missing");
+    return;
+  }
 
-  // نفصلهم إلى top-level أو ردود
-  let roots = [];
-  comments.forEach(c => {
-    if (c.parent_id && map[c.parent_id]) {
-      // هذا رد
-      map[c.parent_id].replies.push(c);
-    } else {
-      // هذا تعليق رئيسي
-      roots.push(c);
-    }
-  });
-  return roots;
-}
-
-// عرض التعليقات شجريًا
-function renderCommentsTree(roots) {
-  let html = "";
-  roots.forEach(root => {
-    // عرض التعليق الأساسي
-    html += createCommentHTML(root);
-    // عرض ردود هذا التعليق
-    root.replies.forEach(r => {
-      html += createCommentHTML(r);
-    });
-  });
-  return html;
-}
-
-// دالة جلب التعليقات
-window.fetchComments = function(postId) {
-  fetch("assist/fetch_comments.php?post_id=" + postId)
-    .then(r => r.json())
+  fetch("assist/like_comment.php?comment_id=" + encodeURIComponent(commentId))
+    .then(res => res.json())
     .then(data => {
-      let container = document.getElementById("commentsContainer_" + postId);
-      if (!container) return;
-
-      // بناء شجرة التعليقات
-      let roots = buildCommentsTree(data);
-      let html = renderCommentsTree(roots);
-      container.innerHTML = html;
-
-      // بعد جلب التعليقات نحدث العدد
-      let commentsCountSpan = document.getElementById("commentsCount_" + postId);
-      if (commentsCountSpan) {
-        commentsCountSpan.textContent = data.length; 
+      // تحديث نص الزر بناءً على الحالة
+      if (data.status === "liked") {
+        btnEl.textContent = "Unlike";
+      } else if (data.status === "unliked") {
+        btnEl.textContent = "Like";
       }
+      // يمكنك تحديث عداد الإعجابات لو لديك عداد
     })
-    .catch(err => console.error("fetchComments error:", err));
+    .catch(err => {
+      const errorObject = {
+        status: "error",
+        message: "toggleLikeComment error",
+        details: err ? err.toString() : "No error details"
+      };
+      console.error(JSON.stringify(errorObject));
+    });
 };
 
-// عند الضغط على زر Like في المنشور
-window.toggleLikePost = function(postId) {
+// إظهار حقل الرد
+window.showReplyInput = function(commentId) {
+  let commentEl = document.getElementById("comment_" + commentId);
+  if (!commentEl) return;
+
+  if (commentEl.querySelector('.reply-input')) return; // لو موجود، لا تكرر
+  let replyHtml = `
+    <div class="reply-input" style="margin-top:0.5rem;">
+      <input type="text" id="replyInput_${commentId}" placeholder="اكتب رد..." style="width:80%;"/>
+      <button onclick="addReply(${commentId})">إرسال</button>
+    </div>
+  `;
+  commentEl.insertAdjacentHTML("beforeend", replyHtml);
+};
+
+// إرسال الرد
+window.addReply = function(commentId) {
+  if (!commentId) {
+    console.error("Comment ID is missing");
+    return;
+  }
+  let input = document.getElementById("replyInput_" + commentId);
+  if (!input) return;
+
+  let content = input.value.trim();
+  if (!content) return;
+
+  // نرسل بالـ GET (كما في الكود الحالي)
+  fetch(`assist/comment_reply.php?parent_comment_id=${encodeURIComponent(commentId)}&content=${encodeURIComponent(content)}`)
+    .then(res => res.json())
+    .then(data => {
+      if (data.status === "ok") {
+        console.log("تم إضافة الرد بنجاح");
+        input.value = "";
+        // يمكنك إعادة جلب التعليقات أو تحديث واجهة الردود
+      } else {
+        console.error("Reply error:", data);
+      }
+    })
+    .catch(err => console.error("addReply error:", err));
+};
+
+
+// تبديل الإعجاب للمنشور (كما هو)
+window.toggleLikePost = function(postId, btnEl) {
   fetch("assist/like_post.php", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -96,16 +113,16 @@ window.toggleLikePost = function(postId) {
   .then(res => res.json())
   .then(data => {
     if (data.status === "liked") {
-      // ...
+      btnEl.querySelector("span").textContent = "Unlike";
     } else if (data.status === "unliked") {
-      // ...
+      btnEl.querySelector("span").textContent = "Like";
     }
     updateLikesCount(postId);
   })
   .catch(err => console.error("toggleLikePost error:", err));
 };
 
-// تحديث عدد الإعجابات
+// تحديث عدد الإعجابات للمنشور
 window.updateLikesCount = function(postId) {
   fetch("assist/fetch_likes_count.php?post_id=" + encodeURIComponent(postId))
     .then(res => res.json())
@@ -118,21 +135,16 @@ window.updateLikesCount = function(postId) {
     .catch(err => console.error("updateLikesCount error:", err));
 };
 
-// إضافة تعليق (أو رد إذا parent_id != null)
-window.addComment = function(postId, parentId=null) {
-  let inputId = parentId ? "replyInput_" + parentId : "commentInput_" + postId;
-  let input = document.getElementById(inputId);
+// إضافة تعليق (جديد) على المنشور
+window.addComment = function(postId) {
+  let input = document.getElementById("commentInput_" + postId);
   if (!input) return;
-
   let content = input.value.trim();
   if (!content) return;
 
   let formData = new FormData();
   formData.append("post_id", postId);
   formData.append("content", content);
-  if (parentId) {
-    formData.append("parent_id", parentId);
-  }
 
   fetch("assist/comment_post.php", {
     method: "POST",
@@ -140,62 +152,18 @@ window.addComment = function(postId, parentId=null) {
   })
   .then(res => res.json())
   .then(data => {
+    console.log("addComment response:", data);
     if (data.status === "ok") {
       // أعد جلب التعليقات
       fetchComments(postId);
       input.value = "";
-      // إخفاء فورم الرد لو موجود
-      if (parentId) {
-        let form = document.getElementById("replyForm_" + parentId);
-        if (form) form.remove();
-      }
     }
   })
   .catch(err => console.error("addComment error:", err));
 };
 
-// فتح حقل للرد
-window.openReplyForm = function(commentId, postId) {
-  // نتأكد ما في فورم رد مفتوح مسبقًا
-  let existing = document.getElementById("replyForm_" + commentId);
-  if (existing) return; // بالفعل مفتوح
-
-  let repliesContainer = document.getElementById("repliesContainer_" + commentId);
-  if (!repliesContainer) return;
-
-  let div = document.createElement("div");
-  div.id = "replyForm_" + commentId;
-  div.innerHTML = `
-    <div style="display:flex; gap:0.5rem; margin: 5px 0 0 40px;">
-      <input id="replyInput_${commentId}" type="text" style="flex:1; border:1px solid #ccc; border-radius:4px; padding:4px;" placeholder="Write a reply...">
-      <button onclick="addComment(${postId}, ${commentId})">Send</button>
-    </div>
-  `;
-  repliesContainer.appendChild(div);
-};
-
-// نظام الإعجاب للتعليقات (اختياري)
-window.toggleLikeComment = function(commentId, el) {
-  fetch("assist/like_comment.php", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: "comment_id=" + encodeURIComponent(commentId)
-  })
-  .then(r => r.json())
-  .then(d => {
-    if (d.status === "liked") {
-      el.textContent = "Unlike";
-    } else if (d.status === "unliked") {
-      el.textContent = "Like";
-    }
-  })
-  .catch(err => console.error("toggleLikeComment error:", err));
-};
-
-
-// عند الضغط على Enter في حقل التعليق الأساسي
+// إرسال التعليق بالضغط على Enter
 document.addEventListener("DOMContentLoaded", function(){
-  // الاستماع لزر Enter في حقول التعليق الرئيسية
   document.querySelectorAll('input[id^="commentInput_"]').forEach(inp => {
     inp.addEventListener("keypress", function(e){
       if(e.key === "Enter"){
@@ -205,3 +173,228 @@ document.addEventListener("DOMContentLoaded", function(){
     });
   });
 });
+
+/* 
+  جلب التعليقات:
+  - نخزّنها في globalCommentsCache[postId]
+  - نعرض 4 تعليقات جذرية فقط (مع رابط لعرض الباقي)
+  - لكل تعليق، نعرض ردًا واحدًا فقط (مع رابط لعرض الباقي)
+*/
+
+window.fetchComments = function(postId) {
+  fetch("assist/fetch_comments.php?post_id=" + encodeURIComponent(postId))
+    .then(r => r.json())
+    .then(data => {
+      // نخزّن البيانات
+      globalCommentsCache[postId] = data;
+
+      let container = document.getElementById("commentsContainer_" + postId);
+      if (!container) return;
+
+      let nestedComments = buildCommentsHierarchy(data);
+      // نعرض جزئيًا
+      container.innerHTML = renderPartialComments(nestedComments, true, postId);
+    })
+    .catch(err => console.error("fetchComments error:", err));
+};
+
+// عند الضغط على "عرض المزيد من التعليقات"
+window.showAllComments = function(postId) {
+  let container = document.getElementById("commentsContainer_" + postId);
+  if (!container) return;
+
+  let data = globalCommentsCache[postId] || [];
+  let nestedComments = buildCommentsHierarchy(data);
+  // الآن نعرض الكل
+  container.innerHTML = renderPartialComments(nestedComments, false, postId);
+};
+
+// بناء شجرة التعليقات (كما هو)
+function buildCommentsHierarchy(comments) {
+  const map = {};
+  comments.forEach(c => {
+    c.replies = [];
+    map[c.id] = c;
+  });
+
+  const roots = [];
+  comments.forEach(c => {
+    if (c.parent_id && c.parent_id !== 0 && c.parent_id !== "0") {
+      if (map[c.parent_id]) {
+        map[c.parent_id].replies.push(c);
+      } else {
+        roots.push(c);
+      }
+    } else {
+      roots.push(c);
+    }
+  });
+  return roots;
+}
+
+/*
+  renderPartialComments(comments, isPartialRoot, postId)
+  - لو isPartialRoot = true => نعرض 4 تعليقات جذرية فقط، مع رابط "عرض المزيد"
+  - لكل تعليق، نعرض ردًا واحدًا فقط، مع رابط "عرض المزيد من الردود"
+  - لو isPartialRoot = false => نعرض كل التعليقات الجذرية
+*/
+function renderPartialComments(comments, isPartialRoot, postId, depth = 0) {
+  let html = "";
+
+  // 1) هل نحن في الجذر؟
+  if (depth === 0 && isPartialRoot) {
+    // عرض 4 فقط
+    let total = comments.length;
+    let visible = Math.min(4, total);
+    for (let i = 0; i < visible; i++) {
+      html += createCommentBlock(comments[i], postId, depth);
+    }
+    let hidden = total - visible;
+    if (hidden > 0) {
+      // رابط "عرض المزيد من التعليقات (X)"
+      html += `
+        <div style="cursor:pointer; color:blue;" onclick="showAllComments(${postId})">
+          عرض ${hidden} تعليقات أخرى
+        </div>
+      `;
+    }
+  } else {
+    // إما الجذر دون اقتصاص أو مستوى رد
+    for (let i = 0; i < comments.length; i++) {
+      html += createCommentBlock(comments[i], postId, depth);
+    }
+  }
+
+  return html;
+}
+
+/*
+  createCommentBlock(comment, postId, depth)
+  - ينشئ HTML للتعليق
+  - يعرض ردًا واحدًا فقط من replies
+  - يضيف رابط "عرض المزيد من الردود" لو في أكثر من رد
+*/
+
+
+/*
+  showAllReplies(commentId, postId)
+  - يُعيد رسم التعليقات مع إظهار كل الردود للتعليق المعين
+  - أسهل طريقة: نعيد بناء الشجرة ونرسم كل شيء دون اقتصاص
+    أو نكتب منطق جزئي لفتح ردود تعليق محدد
+*/
+window.showAllReplies = function(commentId, postId) {
+  let data = globalCommentsCache[postId] || [];
+  let nested = buildCommentsHierarchy(data);
+
+  // نحتاج العثور على التعليق المحدد في الشجرة ونفتح كل ردوده
+  // لأبسط حل: نعيد رسم كل شيء دون اقتصاص في الجذر
+  // لكن نضيف اقتصاص للجذر مع إتاحة فتح كامل الردود
+  // سنرسم كل الجذر لكن مع renderPartialComments(...) 
+  // الفرق: حين نصل للتعليق المحدد، نعرض كل ردوده
+
+  let container = document.getElementById("commentsContainer_" + postId);
+  if (!container) return;
+
+  // نكتب دالة صغيرة للعرض الكامل لردود تعليق واحد:
+  container.innerHTML = renderAllButExpandOne(nested, commentId, postId);
+};
+
+/*
+  renderAllButExpandOne: نعرض 4 تعليقات جذرية كالمعتاد
+  لكن لو وصلنا للتعليق المحدد، نعرض كل ردوده
+*/
+function renderAllButExpandOne(comments, expandId, postId, depth = 0) {
+  let html = "";
+  if (depth === 0) {
+    // نعرض 4 جذرية فقط
+    let total = comments.length;
+    let visible = Math.min(4, total);
+    for (let i = 0; i < visible; i++) {
+      html += createCommentBlockExpand(comments[i], expandId, postId, depth);
+    }
+    let hidden = total - visible;
+    if (hidden > 0) {
+      html += `
+        <div style="cursor:pointer; color:blue;" onclick="showAllComments(${postId})">
+          عرض ${hidden} تعليقات أخرى
+        </div>
+      `;
+    }
+  } else {
+    // في الردود
+    for (let i = 0; i < comments.length; i++) {
+      html += createCommentBlockExpand(comments[i], expandId, postId, depth);
+    }
+  }
+  return html;
+}
+
+/*
+  createCommentBlockExpand(comment, expandId, postId, depth)
+  - مثل createCommentBlock لكن إن كان comment.id = expandId نعرض كل ردوده
+*/
+function createCommentBlock(comment, postId, depth) {
+  let html = createCommentHTML(comment);
+
+  // لو عنده ردود
+  if (comment.replies && comment.replies.length > 0) {
+    html += `<div style="margin-left: 20px;">`;
+
+    // نعرض رداً واحداً فقط (بدون استدعاء renderPartialComments)
+    let totalReplies = comment.replies.length;
+    let firstReply = comment.replies[0];
+    if (firstReply) {
+      html += createCommentHTML(firstReply);
+    }
+
+    let hiddenReplies = totalReplies - 1;
+    if (hiddenReplies > 0) {
+      // زر "عرض المزيد من الردود"
+      html += `
+        <div style="cursor:pointer; color:blue;" onclick="showAllReplies(${comment.id}, ${postId})">
+          عرض ${hiddenReplies} ردود أخرى
+        </div>
+      `;
+    }
+    html += `</div>`; // إغلاق الـ margin-left
+  }
+  return html;
+}
+
+/*
+  createCommentBlockExpand: عند الضغط على "عرض المزيد من الردود" 
+  إذا كان التعليق الحالي هو المطلوب توسيعه (expandId)، نعرض كل ردوده
+  وإلا نعرض ردًا واحدًا فقط
+*/
+function createCommentBlockExpand(comment, expandId, postId, depth) {
+  let html = createCommentHTML(comment);
+
+  if (comment.replies && comment.replies.length > 0) {
+    html += `<div style="margin-left: 20px;">`;
+
+    if (comment.id === expandId) {
+      // نعرض كل الردود
+      for (let r of comment.replies) {
+        html += createCommentHTML(r);
+      }
+    } else {
+      // نعرض رد واحد فقط
+      let totalReplies = comment.replies.length;
+      let firstReply = comment.replies[0];
+      if (firstReply) {
+        html += createCommentHTML(firstReply);
+      }
+      let hiddenReplies = totalReplies - 1;
+      if (hiddenReplies > 0) {
+        html += `
+          <div style="cursor:pointer; color:blue;" onclick="showAllReplies(${comment.id}, ${postId})">
+            عرض ${hiddenReplies} ردود أخرى
+          </div>
+        `;
+      }
+    }
+
+    html += `</div>`;
+  }
+  return html;
+}

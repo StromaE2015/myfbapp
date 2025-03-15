@@ -1,9 +1,7 @@
 $(document).ready(function(){
-  // بمجرد تحميل الصفحة نجلب المنشورات
   fetchPosts();
 });
 
-// جلب المنشورات عبر AJAX من ملف fetch_posts.php
 function fetchPosts(){
   $.ajax({
     url: 'assist/fetch_posts.php',
@@ -12,37 +10,25 @@ function fetchPosts(){
     success: function(html){
       $("#postsSection").html(html);
 
-      // بعد حقن المنشورات في DOM
-      // نفعّل الأحداث (الإعجاب والتعليق)
-      activatePostEvents();
-      
-      // نجلب التعليقات + عدد الإعجابات لكل منشور
-      $(".like-btn").each(function(){
-        let postId = $(this).attr("data-post-id");
-        // تحدّث الإعجابات
-        updateLikesCount(postId);
-        // تحدّث التعليقات
-        fetchComments(postId);
-      });
+      // تأخير بسيط لضمان تحميل كل المنشورات والتأكد من وجود comments-section
+      setTimeout(() => {
+        let commentsSections = $(".comments-section");
+        console.log("✅ عدد comments-section:", commentsSections.length);
+        
+        if (commentsSections.length > 0) {
+          commentsSections.each(function(){
+            let postId = $(this).attr("id")?.replace("commentsContainer_", "");
+            console.log("📝 Found post ID:", postId);
+            fetchComments(postId); // جلب التعليقات بعد التأكد من وجود العنصر
+            
+          });
+        } else {
+          console.log("⚠️ لم يتم العثور على أي comments-section في الصفحة.");
+        }
+      }, 500); // تأخير بسيط عشان نضمن تحميل كل حاجة
     },
     error: function(){
-      console.error("فشل في جلب المنشورات!");
+      console.log("❌ Error fetching posts!");
     }
-  });
-}
-
-// تفعيل زر Like/Comment لكل منشور
-function activatePostEvents(){
-  // زر الإعجاب
-  $(".like-btn").off("click").on("click", function(){
-    let postId = $(this).attr("data-post-id");
-    // استدعاء الدالة الموجودة في likes_comments.js
-    toggleLikePost(postId);
-  });
-
-  // زر إرسال التعليق
-  $(".comment-send-btn").off("click").on("click", function(){
-    let postId = $(this).attr("data-post-id");
-    addComment(postId);
   });
 }

@@ -1,38 +1,46 @@
 <?php
-header('Content-Type: application/json; charset=UTF-8');
+header('Content-Type: application/json');
 session_start();
-require '../admin/config.php';
+require_once '../admin/config.php';
 
-$post_id = intval($_GET['post_id'] ?? 0);
-if ($post_id <= 0) {
-    echo json_encode([]);
-    exit;
-}
+$user_id = $_SESSION['user_id'] ?? 0; 
+$post_id = $_GET['post_id'] ?? 0;
 
-$conn = new mysqli($host, $username, $password, $db_name);
-if ($conn->connect_error) {
-    echo json_encode([]);
-    exit;
-}
-
-// نجلب التعليقات المرئية فقط
-$sql = "SELECT c.*, u.display_name, u.profile_picture
+// نفترض أنك تستخدم MySQLi
+$sql = "SELECT 
+          c.id,
+          c.parent_id,
+          c.post_id,
+          c.user_id,
+          c.content,
+          c.created_at,
+          u.display_name,
+          u.profile_picture,
+          /* 
+             إذا وجد صف في جدول likes يطابق:
+             - likes.user_id = $user_id
+             - likes.comment_id = c.id
+             - likes.post_id IS NULL
+             نرجع is_liked = 1
+             وإلا 0
+          */
+          IF(l.id IS NOT NULL, 1, 0) AS is_liked
         FROM comments c
-        JOIN users u ON c.user_id = u.id
-        WHERE c.post_id=? AND c.status='visible'
+        JOIN users u ON u.id = c.user_id
+        LEFT JOIN likes l 
+               ON (l.comment_id = c.id AND l.post_id IS NULL AND l.user_id = ?)
+        WHERE c.post_id = ?
         ORDER BY c.created_at ASC";
+
 $stmt = $conn->prepare($sql);
-$stmt->bind_param("i", $post_id);
+$stmt->bind_param("ii", $user_id, $post_id);
 $stmt->execute();
-$res = $stmt->get_result();
+$result = $stmt->get_result();
 $comments = [];
-while ($row = $res->fetch_assoc()) {
-    // ممكن إضافة حساب time_ago
-    $row['time_ago'] = 'just now'; 
+
+while($row = $result->fetch_assoc()){
+    // يمكنك حساب time_ago لو أحببت
+    $row['time_ago'] = 'just now';
     $comments[] = $row;
 }
-$stmt->close();
-$conn->close();
-
 echo json_encode($comments);
-?>
