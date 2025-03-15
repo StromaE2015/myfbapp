@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>إنشاء حملة إعلانية</title>
+</head>
+<body>
+    <h1>إنشاء حملة إعلانية</h1>
+    <form action="create_ad.php" method="post">
+      <label for="advertiser_id">معرف المعلن (User ID):</label>
+      <input type="number" id="advertiser_id" name="advertiser_id" required><br><br>
+      
+      <label for="title">عنوان الإعلان:</label>
+      <input type="text" id="title" name="title" required><br><br>
+      
+      <label for="description">الوصف:</label>
+      <textarea id="description" name="description" required></textarea><br><br>
+      
+      <label for="target_interests">الاهتمامات المستهدفة (مفصولة بفواصل):</label>
+      <input type="text" id="target_interests" name="target_interests" required><br><br>
+      
+      <label for="budget">الميزانية:</label>
+      <input type="number" id="budget" name="budget" step="0.01" required><br><br>
+      
+      <label for="start_date">تاريخ البداية:</label>
+      <input type="date" id="start_date" name="start_date" required><br><br>
+      
+      <label for="end_date">تاريخ النهاية:</label>
+      <input type="date" id="end_date" name="end_date" required><br><br>
+      
+      <button type="submit">إنشاء الحملة الإعلانية</button>
+    </form>
+</body>
+</html>

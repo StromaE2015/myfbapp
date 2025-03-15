@@ -32,7 +32,7 @@ function createCommentHTML(comment) {
   `;
 }
 
-// عند الضغط على "Like" أو "Unlike"
+// عند الضغط على "Like" أو "Unlike" للتعليق
 window.toggleLikeComment = function(commentId, btnEl) {
   if (!commentId) {
     console.error("Comment ID is missing");
@@ -102,24 +102,39 @@ window.addReply = function(commentId) {
     .catch(err => console.error("addReply error:", err));
 };
 
-
-// تبديل الإعجاب للمنشور (كما هو)
+// تبديل الإعجاب للمنشور مع تحسين رسالة الخطأ
 window.toggleLikePost = function(postId, btnEl) {
   fetch("assist/like_post.php", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: "post_id=" + encodeURIComponent(postId)
   })
-  .then(res => res.json())
-  .then(data => {
-    if (data.status === "liked") {
-      btnEl.querySelector("span").textContent = "Unlike";
-    } else if (data.status === "unliked") {
-      btnEl.querySelector("span").textContent = "Like";
+  .then(res => res.text())
+  .then(text => {
+    try {
+      const data = JSON.parse(text);
+      if (data.status === "liked") {
+        btnEl.querySelector("span").textContent = "Unlike";
+      } else if (data.status === "unliked") {
+        btnEl.querySelector("span").textContent = "Like";
+      }
+      updateLikesCount(postId);
+    } catch (e) {
+      console.error(JSON.stringify({
+        status: "error",
+        message: "toggleLikePost JSON parse error",
+        details: e.toString(),
+        responseText: text
+      }));
     }
-    updateLikesCount(postId);
   })
-  .catch(err => console.error("toggleLikePost error:", err));
+  .catch(err => {
+    console.error(JSON.stringify({
+      status: "error",
+      message: "toggleLikePost fetch error",
+      details: err.toString()
+    }));
+  });
 };
 
 // تحديث عدد الإعجابات للمنشور
@@ -180,7 +195,6 @@ document.addEventListener("DOMContentLoaded", function(){
   - نعرض 4 تعليقات جذرية فقط (مع رابط لعرض الباقي)
   - لكل تعليق، نعرض ردًا واحدًا فقط (مع رابط لعرض الباقي)
 */
-
 window.fetchComments = function(postId) {
   fetch("assist/fetch_comments.php?post_id=" + encodeURIComponent(postId))
     .then(r => r.json())
@@ -274,65 +288,6 @@ function renderPartialComments(comments, isPartialRoot, postId, depth = 0) {
   - يعرض ردًا واحدًا فقط من replies
   - يضيف رابط "عرض المزيد من الردود" لو في أكثر من رد
 */
-
-
-/*
-  showAllReplies(commentId, postId)
-  - يُعيد رسم التعليقات مع إظهار كل الردود للتعليق المعين
-  - أسهل طريقة: نعيد بناء الشجرة ونرسم كل شيء دون اقتصاص
-    أو نكتب منطق جزئي لفتح ردود تعليق محدد
-*/
-window.showAllReplies = function(commentId, postId) {
-  let data = globalCommentsCache[postId] || [];
-  let nested = buildCommentsHierarchy(data);
-
-  // نحتاج العثور على التعليق المحدد في الشجرة ونفتح كل ردوده
-  // لأبسط حل: نعيد رسم كل شيء دون اقتصاص في الجذر
-  // لكن نضيف اقتصاص للجذر مع إتاحة فتح كامل الردود
-  // سنرسم كل الجذر لكن مع renderPartialComments(...) 
-  // الفرق: حين نصل للتعليق المحدد، نعرض كل ردوده
-
-  let container = document.getElementById("commentsContainer_" + postId);
-  if (!container) return;
-
-  // نكتب دالة صغيرة للعرض الكامل لردود تعليق واحد:
-  container.innerHTML = renderAllButExpandOne(nested, commentId, postId);
-};
-
-/*
-  renderAllButExpandOne: نعرض 4 تعليقات جذرية كالمعتاد
-  لكن لو وصلنا للتعليق المحدد، نعرض كل ردوده
-*/
-function renderAllButExpandOne(comments, expandId, postId, depth = 0) {
-  let html = "";
-  if (depth === 0) {
-    // نعرض 4 جذرية فقط
-    let total = comments.length;
-    let visible = Math.min(4, total);
-    for (let i = 0; i < visible; i++) {
-      html += createCommentBlockExpand(comments[i], expandId, postId, depth);
-    }
-    let hidden = total - visible;
-    if (hidden > 0) {
-      html += `
-        <div style="cursor:pointer; color:blue;" onclick="showAllComments(${postId})">
-          عرض ${hidden} تعليقات أخرى
-        </div>
-      `;
-    }
-  } else {
-    // في الردود
-    for (let i = 0; i < comments.length; i++) {
-      html += createCommentBlockExpand(comments[i], expandId, postId, depth);
-    }
-  }
-  return html;
-}
-
-/*
-  createCommentBlockExpand(comment, expandId, postId, depth)
-  - مثل createCommentBlock لكن إن كان comment.id = expandId نعرض كل ردوده
-*/
 function createCommentBlock(comment, postId, depth) {
   let html = createCommentHTML(comment);
 
@@ -398,3 +353,76 @@ function createCommentBlockExpand(comment, expandId, postId, depth) {
   }
   return html;
 }
+
+// عند الضغط على "عرض المزيد من الردود" لنفس التعليق
+window.showAllReplies = function(commentId, postId) {
+  let data = globalCommentsCache[postId] || [];
+  let nested = buildCommentsHierarchy(data);
+
+  let container = document.getElementById("commentsContainer_" + postId);
+  if (!container) return;
+
+  container.innerHTML = renderAllButExpandOne(nested, commentId, postId);
+};
+
+/*
+  renderAllButExpandOne: نعرض 4 تعليقات جذرية كالمعتاد
+  لكن لو وصلنا للتعليق المحدد، نعرض كل ردوده
+*/
+function renderAllButExpandOne(comments, expandId, postId, depth = 0) {
+  let html = "";
+  if (depth === 0) {
+    let total = comments.length;
+    let visible = Math.min(4, total);
+    for (let i = 0; i < visible; i++) {
+      html += createCommentBlockExpand(comments[i], expandId, postId, depth);
+    }
+    let hidden = total - visible;
+    if (hidden > 0) {
+      html += `
+        <div style="cursor:pointer; color:blue;" onclick="showAllComments(${postId})">
+          عرض ${hidden} تعليقات أخرى
+        </div>
+      `;
+    }
+  } else {
+    for (let i = 0; i < comments.length; i++) {
+      html += createCommentBlockExpand(comments[i], expandId, postId, depth);
+    }
+  }
+  return html;
+}
+
+function trackAdView(adId, userId) {
+    fetch("assist/track_ad_interaction.php", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: "ad_id=" + encodeURIComponent(adId) + "&user_id=" + encodeURIComponent(userId) + "&interaction_type=view"
+    });
+}
+
+function trackAdInteraction(adId, userId, interactionType) {
+    fetch("assist/track_ad_interaction.php", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: "ad_id=" + encodeURIComponent(adId) + "&user_id=" + encodeURIComponent(userId) + "&interaction_type=" + encodeURIComponent(interactionType)
+    });
+}
+
+function trackAdClick(adId, userId) {
+    trackAdInteraction(adId, userId, "click");
+}
+
+// تتبع المشاهدات بمجرد ظهور الإعلان على الشاشة
+let observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+        if (entry.isIntersecting) {
+            let adId = entry.target.getAttribute("data-ad-id");
+            let userId = entry.target.getAttribute("data-user-id");
+            trackAdInteraction(adId, userId, "view");
+            observer.unobserve(entry.target); // تسجيل المشاهدة مرة واحدة فقط
+        }
+    });
+}, { threshold: 0.5 });
+
+document.querySelectorAll('.ad-card').forEach(ad => observer.observe(ad));

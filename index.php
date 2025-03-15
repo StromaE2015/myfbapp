@@ -667,37 +667,11 @@ function loadMoreStories() {
             </div>
             <ul class="p-4">
                 <li>
-                    <a href="#" class="flex items-center space-x-2 p-2 hover:bg-gray-200 rounded-lg transition-all dark:text-dark-txt dark:hover:bg-dark-third">
-                        <img src="./images/group-img-1.jpg" alt="Profile picture" class="w-10 h-10 rounded-lg">
-                        <span class="font-semibold">Cộng đồng Front-end(HTML/CSS/JS) Việt Nam</span>
-                    </a>
+                    <div id="targetedAds">
+						<?php include 'assist/targeted_ads.php'; ?>
+					</div>
                 </li>
-                <li>
-                    <a href="#" class="flex items-center space-x-2 p-2 hover:bg-gray-200 rounded-lg transition-all dark:text-dark-txt dark:hover:bg-dark-third">
-                        <img src="./images/group-img-2.jpg" alt="Profile picture" class="w-10 h-10 rounded-lg">
-                        <span class="font-semibold">CNPM08_UIT_Group học tập</span>
-                    </a>
-                </li>
-                <li>
-                    <a href="#" class="flex items-center space-x-2 p-2 hover:bg-gray-200 rounded-lg transition-all dark:text-dark-txt dark:hover:bg-dark-third">
-                        <img src="./images/group-img-3.jpg" alt="Profile picture" class="w-10 h-10 rounded-lg">
-                        <span class="font-semibold">Cộng đồng UI/UX Design vietnam</span>
-                    </a>
-                </li>
-                <li>
-                    <a href="#" class="flex items-center space-x-2 p-2 hover:bg-gray-200 rounded-lg transition-all dark:text-dark-txt dark:hover:bg-dark-third">
-                        <img src="./images/group-img-4.jpg" alt="Profile picture" class="w-10 h-10 rounded-lg">
-                        <span class="font-semibold">Nihon Koi</span>
-                    </a>
-                </li>
-                <li>
-                    <a href="#" class="flex items-center space-x-2 p-2 hover:bg-gray-200 rounded-lg transition-all dark:text-dark-txt dark:hover:bg-dark-third">
-                        <span class="w-10 h-10 rounded-full grid place-items-center bg-gray-300 dark:bg-dark-second">
-                            <i class='bx bx-chevron-down'></i>
-                        </span>
-                        <span class="font-semibold">See more</span>
-                    </a>
-                </li>
+                
             </ul>
             <div class="mt-auto p-6 text-sm text-gray-500 dark:text-dark-txt">
                 <a href="#">Privacy</a>
