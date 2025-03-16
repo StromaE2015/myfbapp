@@ -88,11 +88,12 @@ if ($conn->connect_error) {
 
 // جلب المنشورات + اسم المستخدم وصورته
 $sql = "
-  SELECT p.*, u.display_name, u.profile_picture, u.id AS user_id
-  FROM posts p
-  JOIN users u ON p.user_id = u.id
-  ORDER BY p.created_at DESC
-  LIMIT 20
+SELECT p.*, u.display_name, u.profile_picture, u.id AS user_id
+FROM posts p
+JOIN users u ON p.user_id = u.id
+ORDER BY p.is_promoted DESC, p.created_at DESC
+LIMIT 20;
+
 ";
 $result = $conn->query($sql);
 if (!$result) {

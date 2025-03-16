@@ -393,36 +393,4 @@ function renderAllButExpandOne(comments, expandId, postId, depth = 0) {
   return html;
 }
 
-function trackAdView(adId, userId) {
-    fetch("assist/track_ad_interaction.php", {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: "ad_id=" + encodeURIComponent(adId) + "&user_id=" + encodeURIComponent(userId) + "&interaction_type=view"
-    });
-}
 
-function trackAdInteraction(adId, userId, interactionType) {
-    fetch("assist/track_ad_interaction.php", {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: "ad_id=" + encodeURIComponent(adId) + "&user_id=" + encodeURIComponent(userId) + "&interaction_type=" + encodeURIComponent(interactionType)
-    });
-}
-
-function trackAdClick(adId, userId) {
-    trackAdInteraction(adId, userId, "click");
-}
-
-// تتبع المشاهدات بمجرد ظهور الإعلان على الشاشة
-let observer = new IntersectionObserver((entries) => {
-    entries.forEach(entry => {
-        if (entry.isIntersecting) {
-            let adId = entry.target.getAttribute("data-ad-id");
-            let userId = entry.target.getAttribute("data-user-id");
-            trackAdInteraction(adId, userId, "view");
-            observer.unobserve(entry.target); // تسجيل المشاهدة مرة واحدة فقط
-        }
-    });
-}, { threshold: 0.5 });
-
-document.querySelectorAll('.ad-card').forEach(ad => observer.observe(ad));

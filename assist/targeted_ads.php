@@ -76,6 +76,6 @@ if (count($user_interests) > 0) {
     <?php else: ?>
         <p>لا توجد إعلانات موجهة حالياً.</p>
     <?php endif; ?>
-    <script src="assets/js/ads_tracking.js"></script>
+    <script src="js/ads_tracking.js"></script>
 </body>
 </html>
